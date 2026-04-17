@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import com.example.novel_r.util.UrlUtils
 
 /**
  * 檔案列表 ViewModel
@@ -192,10 +193,16 @@ class FileListViewModel(application: Application) : AndroidViewModel(application
             return audioFile.filePath
         }
         
-        // 如果是串流，重新解析以取得最新 URL (因為串流 URL 會過期)
-        // 為了效能，可以先檢查原有的 streamUrl 是否還有效 (這比較複雜)，
-        // 簡單作法是每次播放前都快速 refresh 一下 (yt-dlp -g 很快)
+        // 檢查快取的串流網址是否依然有效
+        val cachedUrl = audioFile.streamUrl
+        if (!UrlUtils.isUrlExpired(cachedUrl)) {
+            android.util.Log.d("FileListViewModel", "Using cached stream URL for ${audioFile.fileName}")
+            return cachedUrl!!
+        }
+
+        // 如果已過期或不存在，重新解析
         return try {
+            android.util.Log.d("FileListViewModel", "Stream URL expired or missing, refreshing for ${audioFile.fileName}")
             val result = youTubeRepository.getStreamInfo(audioFile.originalUrl ?: audioFile.filePath)
             val newFile = result.getOrNull()
             if (newFile != null) {

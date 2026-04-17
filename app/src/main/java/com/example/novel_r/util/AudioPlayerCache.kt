@@ -8,8 +8,8 @@ import java.io.File
 
 object AudioPlayerCache {
     private var simpleCache: SimpleCache? = null
-    // 512MB Cache Size
-    private const val MAX_CACHE_SIZE: Long = 512 * 1024 * 1024
+    // 1GB Cache Size (Increased to handle longer buffers)
+    private const val MAX_CACHE_SIZE: Long = 1024 * 1024 * 1024
 
     @Synchronized
     fun getInstance(context: Context): SimpleCache {

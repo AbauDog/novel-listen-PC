@@ -10,6 +10,7 @@ import android.os.Bundle
 import androidx.core.app.NotificationCompat
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import androidx.media3.session.MediaNotification
@@ -23,6 +24,14 @@ import androidx.room.Room
 import android.media.AudioManager
 import android.content.Context
 import androidx.media3.session.DefaultMediaNotificationProvider
+import com.example.novel_r.data.repository.YouTubeRepository
+import com.example.novel_r.util.UrlUtils
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
 
 /**
  * 播放器服務 - 提供背景播放功能
@@ -44,9 +53,10 @@ class PlayerService : MediaSessionService() {
 
     private var mediaSession: MediaSession? = null
     private var exoPlayer: ExoPlayer? = null
-    private var playbackManager: PlaybackManager? = null
     private var audioFocusManager: AudioFocusManager? = null
     private var audioRepository: AudioRepository? = null
+    private var youtubeRepository: YouTubeRepository? = null
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     override fun onCreate() {
         super.onCreate()
@@ -72,6 +82,8 @@ class PlayerService : MediaSessionService() {
             database.playlistBookmarkDao(),
             applicationContext
         )
+        
+        youtubeRepository = YouTubeRepository(applicationContext)
 
         // 設定快取資料來源
         val cache = com.example.novel_r.util.AudioPlayerCache.getInstance(this)
@@ -84,8 +96,23 @@ class PlayerService : MediaSessionService() {
             .setUpstreamDataSourceFactory(upstreamFactory)
             .setFlags(androidx.media3.datasource.cache.CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
         
+        // 自定義負載控制 (Load Control)，增大緩衝以支援長時間預放
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(
+                120000,          // minBufferMs (2 min)
+                1200000,         // maxBufferMs (20 min)
+                1000,            // bufferForPlaybackMs (1 sec)
+                2000             // bufferForPlaybackAfterRebufferMs (2 sec)
+            )
+            .setBackBuffer(
+                300000,          // backBufferDurationMs (5 min)
+                true             // retainBackBufferFromKeyframe
+            )
+            .build()
+
         // 初始化 ExoPlayer
         exoPlayer = ExoPlayer.Builder(this)
+            .setLoadControl(loadControl)
             .setMediaSourceFactory(
                 androidx.media3.exoplayer.source.DefaultMediaSourceFactory(this)
                     .setDataSourceFactory(cacheDataSourceFactory)
@@ -109,6 +136,22 @@ class PlayerService : MediaSessionService() {
                              // 若需要強制刷新，可以重新 setMediaItem 但這不好
                              // 基本上 Media3 會自動呼叫 Provider
                          }
+                    }
+
+                    override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                        android.util.Log.e("PlayerService", "Playback error: ${error.errorCodeName} (${error.errorCode})")
+                        
+                        // 處理 403 錯誤且是網路串流的情境
+                        if (error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS) {
+                            val currentMediaItem = player.currentMediaItem
+                            val mediaId = currentMediaItem?.mediaId
+                            val currentUri = currentMediaItem?.localConfiguration?.uri?.toString()
+                            
+                            if (mediaId != null && mediaId.startsWith("http")) {
+                                android.util.Log.d("PlayerService", "Detected 403 error for stream, attempting background refresh...")
+                                refreshAndResume(mediaId, player.currentPosition)
+                            }
+                        }
                     }
                 })
             }
@@ -151,6 +194,39 @@ class PlayerService : MediaSessionService() {
             }
             val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.createNotificationChannel(channel)
+        }
+    }
+
+    private fun refreshAndResume(mediaId: String, position: Long) {
+        serviceScope.launch {
+            try {
+                val result = youtubeRepository?.getStreamInfo(mediaId)
+                val info = result?.getOrNull()
+                
+                if (info?.streamUrl != null) {
+                    android.util.Log.d("PlayerService", "Successfully refreshed stream URL in background")
+                    
+                    // 更新資料庫
+                    withContext(Dispatchers.IO) {
+                        audioRepository?.insertFile(info)
+                    }
+                    
+                    exoPlayer?.let { player ->
+                        val currentItem = player.currentMediaItem
+                        val newMediaItem = androidx.media3.common.MediaItem.Builder()
+                            .setMediaId(mediaId)
+                            .setUri(info.streamUrl)
+                            .setMediaMetadata(currentItem?.mediaMetadata ?: androidx.media3.common.MediaMetadata.EMPTY)
+                            .build()
+                        
+                        player.setMediaItem(newMediaItem, position)
+                        player.prepare()
+                        player.play()
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("PlayerService", "Failed to refresh stream URL in background", e)
+            }
         }
     }
 
@@ -340,6 +416,13 @@ class PlayerService : MediaSessionService() {
                 player.seekTo(newPosition)
             }
         }
+    }
+
+    override fun onDestroy() {
+        serviceScope.launch {
+            SupervisorJob().cancel() // 取消所有背景任務
+        }
+        super.onDestroy()
     }
 }
 

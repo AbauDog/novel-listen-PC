@@ -11,13 +11,8 @@ import androidx.media3.session.SessionToken
 import com.example.novel_r.service.PlayerService
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
+import com.example.novel_r.util.UrlUtils
 
 enum class PlaybackScope { SINGLE, LIST }
 enum class PlaybackAction { STOP, LOOP }
@@ -116,6 +111,19 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
                         override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                             val errorMsg = "撥放發生錯誤: ${error.message ?: "未知原因"}"
+                            val mediaId = _uiState.value.currentFilePath
+                            
+                            // 如果是 403 錯誤且是網路串流，嘗試自動刷新網址
+                            if (error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS || 
+                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_CLEARTEXT_NOT_PERMITTED) {
+                                
+                                if (mediaId != null && mediaId.startsWith("http")) {
+                                    android.util.Log.d("PlayerViewModel", "Detected playback error (403 or similar), attempting auto-refresh...")
+                                    playMedia(mediaId, _uiState.value.currentTitle)
+                                    return
+                                }
+                            }
+                            
                             _uiState.value = _uiState.value.copy(errorMessage = errorMsg, isPlaying = false)
                         }
                     })
@@ -185,9 +193,18 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             if (controller.isPlaying) {
                 controller.pause()
             } else {
-                controller.play()
+                // 檢查是否網址已過期 (針對 YouTube 等串流)
+                val currentMediaItem = controller.currentMediaItem
+                val mediaId = currentMediaItem?.mediaId
+                val currentUri = currentMediaItem?.localConfiguration?.uri?.toString()
+                
+                if (mediaId != null && currentUri != null && mediaId.startsWith("http") && UrlUtils.isUrlExpired(currentUri)) {
+                    android.util.Log.d("PlayerViewModel", "Stream URL expired before resume, refreshing...")
+                    playMedia(mediaId, _uiState.value.currentTitle)
+                } else {
+                    controller.play()
+                }
             }
-            // 監聽器會處理狀態更新
         }
     }
     
@@ -415,9 +432,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     val realUri = try {
                         if (mediaId.startsWith("http")) {
                             // 優先使用快取的 streamUrl 以加快速度
-<<<<<<< HEAD
                             val cachedUrl = file?.streamUrl
-                            val isExpired = cachedUrl != null && isUrlExpired(cachedUrl)
+                            val isExpired = UrlUtils.isUrlExpired(cachedUrl)
                             
                             if (cachedUrl != null && !isExpired) {
                                 android.net.Uri.parse(cachedUrl)
@@ -426,12 +442,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                                     android.util.Log.d("PlayerViewModel", "Stream URL expired, refreshing...")
                                 }
                                 // 沒有快取或已過期，嘗試解析
-=======
-                            if (file?.streamUrl != null) {
-                                android.net.Uri.parse(file.streamUrl)
-                            } else {
-                                // 沒有快取，嘗試解析
->>>>>>> f73e30da5e9ef76e215d31ee2cd8e3590f1fd3d8
                                 val result = youTubeRepository.getStreamInfo(mediaId)
                                 val info = result.getOrNull()
                                 if (info?.streamUrl != null) {
@@ -565,27 +575,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
         super.onCleared()
     }
-<<<<<<< HEAD
-
-    /**
-     * 檢查網址是否過期 (針對 YouTube 串流網址)
-     */
-    private fun isUrlExpired(url: String): Boolean {
-        try {
-            val uri = android.net.Uri.parse(url)
-            val expireStr = uri.getQueryParameter("expire") ?: return false
-            val expireTime = expireStr.toLongOrNull() ?: return false
-            
-            // 取得目前時間 (秒)
-            val currentTime = System.currentTimeMillis() / 1000
-            
-            // 如果剩餘時間少於 5 分鐘 (300秒) 則視為過期，以確保播放順利
-            return currentTime > (expireTime - 300)
         } catch (e: Exception) {
             e.printStackTrace()
             return false
         }
     }
-=======
->>>>>>> f73e30da5e9ef76e215d31ee2cd8e3590f1fd3d8
 }

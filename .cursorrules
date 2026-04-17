@@ -1,13 +1,1 @@
-# Project Rules
-
-1.  **Language**: Always use **Traditional Chinese (繁體中文)** for:
-    -   Chat responses (對話回覆)
-    -   Code comments (程式碼註解)
-    -   All Markdown files (*.md) including documentation and artifacts (所有 .md 文件與產出物)
-    -   Commit messages (提交訊息)
-    -   Plan explanations (計畫說明)
-
-2.  **Context**: This is a Native Kotlin Android project for an Audiobook/Novel Player.
-    -   Use `ExoPlayer` (Media3) for playback.
-    -   Use `Room` for database.
-    -   Use `Jetpack Compose` for UI.
+始終使用繁體中文（Traditional Chinese 台灣繁體）進行回覆、思考與分析。
