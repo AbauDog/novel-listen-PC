@@ -1,0 +1,130 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.multiplatform'
+    id 'org.jetbrains.compose'
+}
+
+kotlin {
+    androidTarget()
+    jvm("desktop") {
+        compilations.all {
+            kotlinOptions.jvmTarget = '17'
+        }
+    }
+
+    sourceSets {
+        commonMain {
+            dependencies {
+                implementation compose.runtime
+                implementation compose.foundation
+                implementation compose.material3
+                implementation compose.ui
+                implementation compose.components.resources
+                implementation compose.materialIconsExtended
+                implementation "com.google.code.gson:gson:2.10.1"
+                implementation "com.squareup.okhttp3:okhttp:4.11.0"
+                implementation "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-compose:2.8.0"
+                implementation "org.jetbrains.androidx.navigation:navigation-compose:2.8.0-alpha02"
+            }
+        }
+        androidMain {
+            dependsOn commonMain
+            dependencies {
+                implementation 'androidx.core:core-ktx:1.12.0'
+                implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.6.2'
+                implementation "androidx.lifecycle:lifecycle-viewmodel-compose:2.6.2"
+                implementation 'androidx.activity:activity-compose:1.8.0'
+                implementation "androidx.documentfile:documentfile:1.0.1"
+                implementation "androidx.media:media:1.6.0"
+                implementation "androidx.navigation:navigation-compose:2.7.5"
+
+                // Media3 (ExoPlayer)
+                def media3_version = "1.1.1"
+                implementation "androidx.media3:media3-exoplayer:$media3_version"
+                implementation "androidx.media3:media3-ui:$media3_version"
+                implementation "androidx.media3:media3-session:$media3_version"
+
+                // YouTube DL (yt-dlp)
+                implementation 'io.github.junkfood02.youtubedl-android:library:0.18.1'
+                implementation 'io.github.junkfood02.youtubedl-android:ffmpeg:0.18.1'
+
+                // Room (Temporarily disabled for Desktop migration)
+                // def room_version = "2.6.0"
+                // implementation "androidx.room:room-runtime:$room_version"
+                // implementation "androidx.room:room-ktx:$room_version"
+            }
+        }
+        desktopMain {
+            dependsOn commonMain
+            dependencies {
+                implementation compose.desktop.currentOs
+                implementation "org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.7.3"
+                
+                // JavaFX 用於播放音訊
+                def javafxVersion = "21"
+                implementation "org.openjfx:javafx-media:$javafxVersion:win"
+                implementation "org.openjfx:javafx-graphics:$javafxVersion:win"
+                implementation "org.openjfx:javafx-base:$javafxVersion:win"
+                
+                // JLayer (MP3 解碼，支援 VBR seek)
+                implementation "javazoom:jlayer:1.0.1"
+                // mp3spi (MP3 → javax.sound.sampled)
+                implementation "com.googlecode.soundlibs:mp3spi:1.9.5.4"
+                implementation "com.googlecode.soundlibs:tritonus-share:0.3.7.4"
+                
+                // JNativeHook (全域快速鍵)
+                implementation "com.github.kwhat:jnativehook:2.2.2"
+            }
+        }
+    }
+}
+
+android {
+    namespace = 'com.example.novel_r'
+    compileSdk = 34
+
+    defaultConfig {
+        applicationId = "com.example.novel_r"
+        minSdk = 24
+        targetSdk = 34
+        versionCode = 1
+        versionName = "1.0"
+
+        vectorDrawables {
+            useSupportLibrary = true
+        }
+    }
+
+    sourceSets {
+        main {
+            manifest.srcFile 'src/androidMain/AndroidManifest.xml'
+            res.srcDirs = ['src/androidMain/res']
+            java.srcDirs = ['src/androidMain/kotlin', 'src/commonMain/kotlin']
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    
+    packagingOptions {
+        resources {
+            excludes += '/META-INF/{AL2.0,LGPL2.1}'
+        }
+    }
+}
+
+compose.desktop {
+    application {
+        mainClass = "MainKt"
+        jvmArgs("-Dskiko.renderApi=SOFTWARE")
+        nativeDistributions {
+            targetFormats(org.jetbrains.compose.desktop.application.dsl.TargetFormat.Msi, org.jetbrains.compose.desktop.application.dsl.TargetFormat.Exe)
+            packageName = "Novel_R"
+            packageVersion = "1.0.0"
+        }
+    }
+}
+
+

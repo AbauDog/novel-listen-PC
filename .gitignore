@@ -19,3 +19,18 @@ out/
 .idea/
 *.iml
 .DS_Store
+
+# PC / Desktop specific
+Novel_R.jar
+JNativeHook.x86_64.dll
+h origin main
+scratch/
+*.mp3
+novel_r_data.json
+novel_r_debug.log
+test.json
+test_utf8.json
+resource/ffmpeg.exe
+resource/yt-dlp.exe
+resource/youtube_cache/
+resource/novel_r_debug.log
