@@ -17,8 +17,8 @@ private val LightColorScheme = lightColorScheme(
     primary = Color(0xFF6650a4),
     secondary = Color(0xFF625b71),
     tertiary = Color(0xFF7D5260),
-    background = Color(0xFFE2E2E2), // 微暗的淺灰色背景
-    surface = Color(0xFFECECEC)     // 表面/對話框等底色
+    background = Color(0xFFB0B0B0), // 再深一些的灰色背景
+    surface = Color(0xFFC0C0C0)     // 再深一些的表面底色
 )
 
 @Composable

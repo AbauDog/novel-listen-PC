@@ -170,6 +170,9 @@ fun PlayerScreen(
                         isDragging = false
                     },
                     valueRange = 0f..(uiState.duration.toFloat().coerceAtLeast(1f)),
+                    colors = SliderDefaults.colors(
+                        inactiveTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
+                    ),
                     modifier = Modifier.fillMaxWidth()
                 )
                 

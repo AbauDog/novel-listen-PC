@@ -223,8 +223,29 @@ class PlayerViewModel(
             _uiState.update { it.copy(currentFilePath = finalPath, currentTitle = finalTitle) }
             
             // 3. 獲取進度 (如果有指定 startTimeMs 則優先使用，否則嘗試從資料庫抓取)
-            val finalStartPos = startTimeMs ?: (audioFile?.originalUrl?.let { audioRepository.getProgress(it) } 
-                ?: audioRepository.getProgress(finalPath))?.lastPosition ?: 0L
+            val finalStartPos = if (startTimeMs != null) {
+                startTimeMs
+            } else {
+                val savedProgress = audioFile?.originalUrl?.let { audioRepository.getProgress(it) } 
+                    ?: audioRepository.getProgress(finalPath)
+                val savedPos = savedProgress?.lastPosition ?: 0L
+                val savedDur = savedProgress?.duration ?: 0L
+                val percentage = if (savedDur > 0) (savedPos.toFloat() / savedDur * 100).toInt().coerceIn(0, 100) else 0
+                
+                if (percentage >= 99) {
+                    // 若播放進度已 >= 99%，則點選時歸0重新播放，並同步存檔
+                    val targetDur = totalDur.coerceAtLeast(savedDur)
+                    audioRepository.saveProgress(finalPath, 0L, targetDur)
+                    audioFile?.originalUrl?.let { url ->
+                        if (url != finalPath) {
+                            audioRepository.saveProgress(url, 0L, targetDur)
+                        }
+                    }
+                    0L
+                } else {
+                    savedPos
+                }
+            }
             
             println("[PlayerVM] 開始播放: $finalTitle, 跳轉至: ${finalStartPos}ms, 總長: ${totalDur}ms")
             player.play(finalPath, finalStartPos, totalDur)

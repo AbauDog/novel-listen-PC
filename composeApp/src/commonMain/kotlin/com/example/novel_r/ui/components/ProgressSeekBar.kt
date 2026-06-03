@@ -27,6 +27,9 @@ fun ProgressSeekBar(
             value = if (duration > 0) currentPosition.toFloat() else 0f,
             onValueChange = { onSeek(it.toLong()) },
             valueRange = 0f..duration.toFloat().coerceAtLeast(1f),
+            colors = SliderDefaults.colors(
+                inactiveTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
+            ),
             modifier = Modifier.fillMaxWidth()
         )
         
@@ -68,6 +71,9 @@ fun ProgressSeekBarWithPercentage(
             value = if (duration > 0) currentPosition.toFloat() else 0f,
             onValueChange = { onSeek(it.toLong()) },
             valueRange = 0f..duration.toFloat().coerceAtLeast(1f),
+            colors = SliderDefaults.colors(
+                inactiveTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
+            ),
             modifier = Modifier.fillMaxWidth()
         )
         

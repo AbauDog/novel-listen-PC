@@ -360,7 +360,8 @@ class JLayerAudioPlayer : PlatformAudioPlayer {
 
                 posMs += hdr.ms_per_frame()
                 val currentPosLong = posMs.toLong()
-                _currentPosition.value = currentPosLong
+                val dur = _duration.value
+                _currentPosition.value = if (dur > 0) currentPosLong.coerceAtMost(dur) else currentPosLong
                 bs?.closeFrame()
             }
         } catch (e: Exception) {
