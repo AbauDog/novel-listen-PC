@@ -1,4 +1,4 @@
-# novel-listen  
+# novel-listen
 
 聽小說(音樂)用
 1.可選擇本地端檔案
@@ -18,11 +18,13 @@ powershell
 指令	用途
 .\\gradlew.bat packageExe	打包成 .exe 安裝檔
 .\\gradlew.bat packageMsi	打包成 .msi 安裝檔
-檔案位置：composeApp\\build\\compose\\binaries\\main\\msi\\Novel\_R-1.0.0.msi
+檔案位置：composeApp\\build\\compose\\binaries\\main\\msi\\Novel\_R-1.1.0.msi
 cd e:\\abau\\VSC\\Novel\_R\_PC\\  
 .\\gradlew.bat createDistributable	產生不需安裝的可攜式資料夾
 檔案位置：composeApp\\build\\compose\\binaries\\main\\app\\Novel\_R  
-cd e:\\abau\\VSC\\Novel\_R\_PC\\composeApp\\build\\compose\\binaries\\main\\app\\Novel\_R  
+cd d:\\VSC\\Novel\_R\_PC\\composeApp\\build\\compose\\binaries\\main\\app\\Novel\_R  
+
+
 複製到tools目錄
-robocopy "e:\\abau\\VSC\\Novel\_R\_PC\\composeApp\\build\\compose\\binaries\\main\\app\\Novel\_R" "e:\\tools\\Novel\_R\_PC" /e /is
+robocopy "d:\\VSC\\Novel\_R\_PC\\composeApp\\build\\compose\\binaries\\main\\app\\Novel\_R" "e:\\tools\\Novel\_R\_PC" /e /is
 

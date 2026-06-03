@@ -21,6 +21,7 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import com.example.novel_r.data.model.AudioFile
 import com.example.novel_r.ui.viewmodel.FileListViewModel
 import com.example.novel_r.ui.viewmodel.PlayerViewModel
+import com.example.novel_r.ui.components.AppTooltip
 import com.example.novel_r.util.rememberFolderPicker
 import com.example.novel_r.util.rememberFilePicker
 import com.example.novel_r.util.rememberSaveFilePicker
@@ -84,54 +85,62 @@ fun FileListScreen(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         // 2. 資料夾按鈕
-                        IconButton(
-                            onClick = { folderPicker.launch() },
-                            modifier = Modifier.size(24.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.FolderOpen, 
-                                contentDescription = "Open Folder",
-                                modifier = Modifier.size(16.dp)
-                            )
+                        AppTooltip("選擇/開啟資料夾") {
+                            IconButton(
+                                onClick = { folderPicker.launch() },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.FolderOpen, 
+                                    contentDescription = "Open Folder",
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
                         }
                         
                         // 2. 檔案按鈕 (新增)
-                        IconButton(
-                            onClick = { filePicker.launch() },
-                            modifier = Modifier.size(24.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.PostAdd, 
-                                contentDescription = "Add Files",
-                                modifier = Modifier.size(16.dp)
-                            )
+                        AppTooltip("新增音訊檔案") {
+                            IconButton(
+                                onClick = { filePicker.launch() },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.PostAdd, 
+                                    contentDescription = "Add Files",
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
                         }
                         
                         // 網路按鈕
-                        IconButton(
-                            onClick = { showYoutubeDialog = true },
-                            modifier = Modifier.size(24.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.CloudDownload, 
-                                contentDescription = "網路串流網址",
-                                modifier = Modifier.size(18.dp),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
+                        AppTooltip("網路串流與下載") {
+                            IconButton(
+                                onClick = { showYoutubeDialog = true },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.CloudDownload, 
+                                    contentDescription = "網路串流網址",
+                                    modifier = Modifier.size(18.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
                         }
 
                         // 排序按鈕 (新增)
                         Box {
-                            IconButton(
-                                onClick = { showSortMenu = true },
-                                modifier = Modifier.size(24.dp)
-                            ) {
-                                Icon(
-                                    Icons.Default.Sort, 
-                                    contentDescription = "排序方式",
-                                    modifier = Modifier.size(18.dp),
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
+                            AppTooltip("切換排序方式") {
+                                IconButton(
+                                    onClick = { showSortMenu = true },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Sort, 
+                                        contentDescription = "排序方式",
+                                        modifier = Modifier.size(18.dp),
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
                             }
                             DropdownMenu(
                                 expanded = showSortMenu,
@@ -202,37 +211,34 @@ fun FileListScreen(
                         )
                         
                         // 1. 清除所有清單按鈕
-                        IconButton(
-                            onClick = { showClearConfirmDialog = true },
-                            modifier = Modifier.size(24.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.DeleteSweep, 
-                                contentDescription = "Clear All",
-                                modifier = Modifier.size(18.dp),
-                                tint = Color.Gray
-                            )
+                        AppTooltip("清空播放清單") {
+                            IconButton(
+                                onClick = { showClearConfirmDialog = true },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.DeleteSweep, 
+                                    contentDescription = "Clear All",
+                                    modifier = Modifier.size(18.dp),
+                                    tint = Color.Gray
+                                )
+                            }
                         }
                     }
                 },
                 actions = {
-                    IconButton(
-                        onClick = onNavigateToPlayer,
-                        modifier = Modifier.size(32.dp)
-                    ) { 
-                        Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(18.dp)) 
-                    }
-                    
-                    IconButton(
-                        onClick = onExit,
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.PowerSettingsNew, 
-                            contentDescription = "Exit App", 
-                            tint = Color.Red,
-                            modifier = Modifier.size(18.dp)
-                        )
+                    AppTooltip("結束程式") {
+                        IconButton(
+                            onClick = onExit,
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.PowerSettingsNew, 
+                                contentDescription = "Exit App", 
+                                tint = Color.Red,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
                 },
                 modifier = Modifier.height(40.dp)

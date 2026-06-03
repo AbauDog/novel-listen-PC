@@ -71,7 +71,7 @@ fun main() = application {
     if (isWindowVisible) {
         Window(
             onCloseRequest = { isWindowVisible = false },
-            title = "Abau.聽讀 v1.0",
+            title = "Abau.聽讀 v1.1",
             icon = icon,
             state = rememberWindowState(
                 position = WindowPosition(Alignment.BottomStart),
@@ -93,7 +93,7 @@ fun main() = application {
 
     Tray(
         icon = icon,
-        tooltip = "Abau.聽讀 v1.0",
+        tooltip = "Abau.聽讀 v1.1",
         onAction = { isWindowVisible = true },
         menu = {
             Item("Show", onClick = { isWindowVisible = true })

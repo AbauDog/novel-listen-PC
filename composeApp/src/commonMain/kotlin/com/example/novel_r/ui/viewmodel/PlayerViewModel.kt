@@ -13,6 +13,7 @@ import kotlinx.coroutines.runBlocking
 
 enum class PlaybackScope { SINGLE, LIST }
 enum class PlaybackAction { STOP, LOOP }
+enum class PlaybackMode { SINGLE, LOOP, LIST }
 
 /**
  * 播放器 ViewModel (跨平台版本)
@@ -37,11 +38,22 @@ class PlayerViewModel(
         val errorMessage: String? = null,
         val playbackScope: PlaybackScope = PlaybackScope.LIST,
         val playbackAction: PlaybackAction = PlaybackAction.STOP,
+        val playbackMode: PlaybackMode = PlaybackMode.LIST,
         val debugLog: String = "",
-        val downloadProgress: String? = null // 目前歌曲的下載進度 (0-100)
+        val downloadProgress: String? = null, // 目前歌曲的下載進度 (0-100)
+        val downloadError: String? = null // 目前歌曲的下載錯誤訊息
     )
 
     init {
+        // 啟動時自動在背景下載/檢查 ffmpeg 與 ffprobe 組件，確保本地大檔案播放時時長解析正確
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                audioRepository.ensureFfmpeg()
+            } catch (e: Exception) {
+                println("[PlayerVM] 背景初始化 ffmpeg/ffprobe 失敗: ${e.message}")
+            }
+        }
+
         // 監聽下載進度
         viewModelScope.launch {
             combine(audioRepository.downloadProgressFlow, _uiState) { progressMap, state ->
@@ -51,19 +63,45 @@ class PlayerViewModel(
                 _uiState.update { it.copy(downloadProgress = progress) }
             }
         }
+
+        // 監聽下載錯誤
+        viewModelScope.launch {
+            combine(audioRepository.downloadErrorsFlow, _uiState) { errorsMap, state ->
+                val currentUrl = state.currentFilePath?.substringAfter("youtube:")?.trim() ?: ""
+                errorsMap[currentUrl]
+            }.distinctUntilChanged().collect { error ->
+                _uiState.update { it.copy(downloadError = error) }
+            }
+        }
         // 監聽播放狀態
+        var lastStateWasPlaying = false
         viewModelScope.launch {
             combine(player.isPlaying, player.currentPosition, player.duration, player.debugLog) { playing, pos, dur, log ->
                 arrayOf(playing, pos, dur, log)
             }.collect { arr ->
+                val playing = arr[0] as Boolean
+                val pos = arr[1] as Long
+                val dur = arr[2] as Long
+                val log = arr[3] as String
+                
                 _uiState.update { 
                     it.copy(
-                        isPlaying = arr[0] as Boolean, 
-                        currentPosition = arr[1] as Long, 
-                        duration = arr[2] as Long,
-                        debugLog = arr[3] as String
+                        isPlaying = playing, 
+                        currentPosition = pos, 
+                        duration = dur,
+                        debugLog = log
                     ) 
                 }
+
+                // 偵測自然播放結束：從正在播放變為停止播放，且目前播放進度已經到達或極度接近總長度
+                if (lastStateWasPlaying && !playing) {
+                    val isCompleted = dur > 0 && pos >= (dur - 2000L)
+                    if (isCompleted) {
+                        println("[PlayerVM] 偵測到音訊自然播放完畢，觸發自動下一首邏輯")
+                        handlePlaybackCompletion()
+                    }
+                }
+                lastStateWasPlaying = playing
             }
         }
 
@@ -259,8 +297,86 @@ class PlayerViewModel(
         seekTo(newPos)
     }
 
-    fun skipToNext() { /* TODO */ }
-    fun skipToPrevious() { /* TODO */ }
+    fun skipToNext() {
+        playNextSong()
+    }
+
+    fun skipToPrevious() {
+        viewModelScope.launch {
+            val allFiles = audioRepository.getAllAudioFiles().first()
+            if (allFiles.isEmpty()) return@launch
+            
+            val currentPath = _uiState.value.currentFilePath
+            val currentIndex = allFiles.indexOfFirst { it.filePath == currentPath }
+            
+            val prevIndex = if (currentIndex > 0) {
+                currentIndex - 1
+            } else {
+                allFiles.size - 1
+            }
+            
+            val prevFile = allFiles[prevIndex]
+            playMedia(prevFile.filePath, prevFile.fileName, startTimeMs = 0L)
+        }
+    }
+
+    fun playNextSong() {
+        viewModelScope.launch {
+            val allFiles = audioRepository.getAllAudioFiles().first()
+            if (allFiles.isEmpty()) {
+                stop()
+                return@launch
+            }
+            
+            val currentPath = _uiState.value.currentFilePath
+            val currentIndex = allFiles.indexOfFirst { it.filePath == currentPath }
+            
+            val nextIndex = if (currentIndex != -1 && currentIndex < allFiles.size - 1) {
+                currentIndex + 1
+            } else {
+                0
+            }
+            
+            val nextFile = allFiles[nextIndex]
+            println("[PlayerVM] 自動播放下一首: ${nextFile.fileName}")
+            playMedia(nextFile.filePath, nextFile.fileName, startTimeMs = 0L)
+        }
+    }
+
+    private fun handlePlaybackCompletion() {
+        viewModelScope.launch {
+            val mode = _uiState.value.playbackMode
+            when (mode) {
+                PlaybackMode.SINGLE -> {
+                    stop()
+                }
+                PlaybackMode.LOOP -> {
+                    val currentPath = _uiState.value.currentFilePath
+                    val currentTitle = _uiState.value.currentTitle
+                    if (currentPath != null) {
+                        playMedia(currentPath, currentTitle, startTimeMs = 0L)
+                    } else {
+                        stop()
+                    }
+                }
+                PlaybackMode.LIST -> {
+                    playNextSong()
+                }
+            }
+        }
+    }
+
+    fun togglePlaybackMode() {
+        _uiState.update { 
+            val nextMode = when (it.playbackMode) {
+                PlaybackMode.LIST -> PlaybackMode.SINGLE
+                PlaybackMode.SINGLE -> PlaybackMode.LOOP
+                PlaybackMode.LOOP -> PlaybackMode.LIST
+            }
+            it.copy(playbackMode = nextMode)
+        }
+    }
+
     fun togglePlaybackScope() {
         _uiState.update { it.copy(playbackScope = if (it.playbackScope == PlaybackScope.LIST) PlaybackScope.SINGLE else PlaybackScope.LIST) }
     }
@@ -278,6 +394,14 @@ class PlayerViewModel(
     }
     fun clearError() {
         _uiState.update { it.copy(errorMessage = null) }
+    }
+
+    fun retryCurrentDownload() {
+        val currentPath = _uiState.value.currentFilePath ?: return
+        if (currentPath.startsWith("youtube:")) {
+            val realUrl = currentPath.substringAfter("youtube:").trim()
+            audioRepository.retryDownload(realUrl)
+        }
     }
     
     fun clearDebugLog() {

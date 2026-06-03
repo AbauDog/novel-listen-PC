@@ -30,6 +30,10 @@ class AudioRepository(
     private val _downloadProgressFlow = kotlinx.coroutines.flow.MutableStateFlow<Map<String, String>>(emptyMap())
     val downloadProgressFlow: kotlinx.coroutines.flow.StateFlow<Map<String, String>> = _downloadProgressFlow
 
+    // 用於記錄下載錯誤 (URL -> 錯誤訊息)
+    private val _downloadErrorsFlow = kotlinx.coroutines.flow.MutableStateFlow<Map<String, String>>(emptyMap())
+    val downloadErrorsFlow: kotlinx.coroutines.flow.StateFlow<Map<String, String>> = _downloadErrorsFlow
+
 
     /**
      * 取得所有音訊檔案
@@ -108,6 +112,15 @@ class AudioRepository(
     }
 
     /**
+     * 確認 ffmpeg 與 ffprobe 已就緒（找不到則自動下載）
+     */
+    suspend fun ensureFfmpeg(onProgress: (String) -> Unit = {}): Boolean {
+        if (youtubeDownloader == null) return false
+        return youtubeDownloader.ensureFfmpeg(onProgress)
+    }
+
+
+    /**
      * 處理 YouTube 網址 (快速啟動版本)
      */
     suspend fun processYoutubeUrl(inputUrl: String, onProgress: (String) -> Unit = {}): Result<AudioFile> {
@@ -130,36 +143,64 @@ class AudioRepository(
             
             // 3. 只有當還是「串流」時才需要在背景開始下載存檔 (不阻塞播放)
             if (streamFile.isStream) {
-                // 檢查是否已有相同 URL 的下載任務正在執行中，避免重複下載造成檔案鎖定損壞
-                if (downloadJobs.containsKey(url)) {
-                    println("[AudioRepo] 該網址已有下載任務在執行中，跳過重複下載: $url")
-                    return Result.success(streamFile)
-                }
-                
-                // 使用 viewModelScope 或特定的下載 Scope，這裡先維持 GlobalScope 但加強狀態管理
-                val job = GlobalScope.launch(Dispatchers.IO) {
-                    println("[AudioRepo] 開始背景下載: $url")
-                    val downloadResult = youtubeDownloader.downloadAudio(url, getAppDataPath()) { percent ->
-                        _downloadProgressFlow.update { it + (url to percent) }
-                    }
-                    downloadResult.onSuccess { downloadedFile ->
-                        println("[AudioRepo] 下載成功，切換至本地路徑: ${downloadedFile.filePath}")
-                        insertFile(downloadedFile) // 只有成功才替換為本地路徑
-                        _downloadCompletedFlow.emit(downloadedFile) // 發送通知
-                    }
-                    downloadResult.onFailure {
-                        println("[AudioRepo] 下載失敗: ${it.message}")
-                    }
-                    _downloadProgressFlow.update { it - url } // 移除進度紀錄
-                    downloadJobs.remove(url)
-                }
-                downloadJobs[url] = job
+                startDownloadJob(url)
             }
             
             return Result.success(streamFile)
         } else {
             return streamResult
         }
+    }
+
+    private fun startDownloadJob(url: String) {
+        if (youtubeDownloader == null) return
+        val cleanUrl = url.trim()
+        if (downloadJobs.containsKey(cleanUrl)) return
+        
+        val job = GlobalScope.launch(Dispatchers.IO) {
+            var success = false
+            var attempt = 0
+            val maxAttempts = 3
+            
+            while (!success && attempt < maxAttempts) {
+                attempt++
+                println("[AudioRepo] 開始背景下載 (嘗試 $attempt/$maxAttempts): $cleanUrl")
+                _downloadErrorsFlow.update { it - cleanUrl } // 清除舊錯誤
+                
+                val downloadResult = youtubeDownloader.downloadAudio(cleanUrl, getAppDataPath()) { percent ->
+                    _downloadProgressFlow.update { it + (cleanUrl to percent) }
+                }
+                
+                downloadResult.onSuccess { downloadedFile ->
+                    println("[AudioRepo] 下載成功，切換至本地路徑: ${downloadedFile.filePath}")
+                    insertFile(downloadedFile) // 只有成功才替換為本地路徑
+                    _downloadCompletedFlow.emit(downloadedFile) // 發送通知
+                    success = true
+                }
+                
+                downloadResult.onFailure {
+                    val errorMsg = it.message ?: "未知錯誤"
+                    println("[AudioRepo] 下載失敗 (嘗試 $attempt/$maxAttempts): $errorMsg")
+                    if (attempt < maxAttempts) {
+                        _downloadProgressFlow.update { it + (cleanUrl to "連線中斷，正在自動續傳...($attempt/3)") }
+                        kotlinx.coroutines.delay(5000) // 等待 5 秒後自動重試
+                    } else {
+                        _downloadErrorsFlow.update { it + (cleanUrl to errorMsg) }
+                    }
+                }
+            }
+            
+            _downloadProgressFlow.update { it - cleanUrl } // 移除進度紀錄
+            downloadJobs.remove(cleanUrl)
+        }
+        downloadJobs[cleanUrl] = job
+    }
+
+    /**
+     * 手動續傳下載
+     */
+    fun retryDownload(url: String) {
+        startDownloadJob(url)
     }
 
     /**

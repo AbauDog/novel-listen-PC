@@ -19,6 +19,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.selection.SelectionContainer
 import com.example.novel_r.ui.theme.NovelRTheme
 import com.example.novel_r.ui.viewmodel.PlayerViewModel
+import com.example.novel_r.ui.components.AppTooltip
 import com.example.novel_r.util.TimeFormatter
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.input.pointer.*
@@ -69,15 +70,17 @@ fun PlayerScreen(
                                 Text("-30", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                             }
                             
-                            FilledIconButton(
-                                onClick = { viewModel.togglePlayPause() },
-                                modifier = Modifier.size(32.dp)
-                            ) {
-                                Icon(
-                                    if (uiState.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow, 
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp)
-                                )
+                            AppTooltip(if (uiState.isPlaying) "暫停播放" else "開始播放") {
+                                FilledIconButton(
+                                    onClick = { viewModel.togglePlayPause() },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        if (uiState.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow, 
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
                             }
                             
                             TextButton(onClick = { viewModel.fastForward(30) }, contentPadding = PaddingValues(0.dp)) {
@@ -89,25 +92,59 @@ fun PlayerScreen(
                         }
                     },
                     navigationIcon = {
-                        IconButton(
-                            onClick = onNavigateBack,
-                            modifier = Modifier.size(32.dp) // 縮小返回按鈕
-                        ) {
-                            Icon(Icons.Default.ArrowBack, null, modifier = Modifier.size(18.dp))
+                        AppTooltip("返回檔案列表") {
+                            IconButton(
+                                onClick = onNavigateBack,
+                                modifier = Modifier.size(32.dp) // 縮小返回按鈕
+                            ) {
+                                Icon(Icons.Default.ArrowBack, null, modifier = Modifier.size(18.dp))
+                            }
                         }
                     },
                     actions = {
+                        // 播放模式按鈕 (單次/循環/清單)
+                        val modeText = when (uiState.playbackMode) {
+                            com.example.novel_r.ui.viewmodel.PlaybackMode.SINGLE -> "單次播放"
+                            com.example.novel_r.ui.viewmodel.PlaybackMode.LOOP -> "單曲循環"
+                            com.example.novel_r.ui.viewmodel.PlaybackMode.LIST -> "清單播放"
+                        }
+                        AppTooltip("播放模式: $modeText") {
+                            IconButton(
+                                onClick = { viewModel.togglePlaybackMode() },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                val icon = when (uiState.playbackMode) {
+                                    com.example.novel_r.ui.viewmodel.PlaybackMode.SINGLE -> Icons.Default.LooksOne
+                                    com.example.novel_r.ui.viewmodel.PlaybackMode.LOOP -> Icons.Default.Repeat
+                                    com.example.novel_r.ui.viewmodel.PlaybackMode.LIST -> Icons.Default.FormatListBulleted
+                                }
+                                val tintColor = when (uiState.playbackMode) {
+                                    com.example.novel_r.ui.viewmodel.PlaybackMode.SINGLE -> Color.Gray
+                                    com.example.novel_r.ui.viewmodel.PlaybackMode.LOOP -> MaterialTheme.colorScheme.primary
+                                    com.example.novel_r.ui.viewmodel.PlaybackMode.LIST -> Color(0xFF008080) // 墨綠/青色
+                                }
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = "播放模式: ${uiState.playbackMode}",
+                                    tint = tintColor,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+
                         // 1. 關閉按鈕縮小 1/2
-                        IconButton(
-                            onClick = onExit,
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.PowerSettingsNew, 
-                                contentDescription = "Exit App", 
-                                tint = Color.Red,
-                                modifier = Modifier.size(18.dp)
-                            )
+                        AppTooltip("結束程式") {
+                            IconButton(
+                                onClick = onExit,
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.PowerSettingsNew, 
+                                    contentDescription = "Exit App", 
+                                    tint = Color.Red,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
                         }
                     },
                     modifier = Modifier.height(40.dp) // 頂部欄高度也縮小
@@ -163,6 +200,29 @@ fun PlayerScreen(
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(top = 2.dp)
                     )
+                } else if (uiState.downloadError != null) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.padding(top = 2.dp)
+                    ) {
+                        Text(
+                            text = "❌ 下載失敗: ${uiState.downloadError}",
+                            fontSize = 11.sp,
+                            color = Color.Red,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                        TextButton(
+                            onClick = { viewModel.retryCurrentDownload() },
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+                            modifier = Modifier.height(24.dp)
+                        ) {
+                            Text("手動續傳", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
                 } else if (uiState.currentFilePath?.startsWith("youtube:") == true) {
                     Text(
                         text = "📥 背景下載準備中...",

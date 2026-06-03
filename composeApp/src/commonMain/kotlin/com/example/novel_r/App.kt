@@ -8,6 +8,8 @@ import com.example.novel_r.ui.screens.PlayerScreen
 import com.example.novel_r.ui.viewmodel.FileListViewModel
 import com.example.novel_r.ui.viewmodel.PlayerViewModel
 
+import com.example.novel_r.ui.theme.NovelRTheme
+
 @Composable
 fun App(
     audioRepository: AudioRepository,
@@ -20,32 +22,36 @@ fun App(
     // 2. 設定導覽
     val navController = rememberNavController()
     
-    NavHost(navController = navController, startDestination = "fileList") {
-        composable("fileList") {
-            FileListScreen(
-                viewModel = fileListViewModel,
-                playerViewModel = playerViewModel,
-                onFileSelected = { path, title ->
-                    val encodedPath = encodeParam(path)
-                    val encodedTitle = encodeParam(title)
-                    navController.navigate("player?path=$encodedPath&title=$encodedTitle")
-                },
-                onNavigateToPlayer = {
-                    navController.navigate("player")
-                },
-                onExit = onExit
-            )
-        }
-        composable("player?path={path}&title={title}") { backStackEntry ->
-            val path = backStackEntry.arguments?.getString("path")
-            val title = backStackEntry.arguments?.getString("title")
-            PlayerScreen(
-                filePath = path,
-                fileTitle = title,
-                viewModel = playerViewModel,
-                onNavigateBack = { navController.popBackStack() },
-                onExit = onExit
-            )
+    val playerUiState by playerViewModel.uiState.collectAsState()
+    
+    NovelRTheme(isLockMode = playerUiState.isLockMode) {
+        NavHost(navController = navController, startDestination = "fileList") {
+            composable("fileList") {
+                FileListScreen(
+                    viewModel = fileListViewModel,
+                    playerViewModel = playerViewModel,
+                    onFileSelected = { path, title ->
+                        val encodedPath = encodeParam(path)
+                        val encodedTitle = encodeParam(title)
+                        navController.navigate("player?path=$encodedPath&title=$encodedTitle")
+                    },
+                    onNavigateToPlayer = {
+                        navController.navigate("player")
+                    },
+                    onExit = onExit
+                )
+            }
+            composable("player?path={path}&title={title}") { backStackEntry ->
+                val path = backStackEntry.arguments?.getString("path")
+                val title = backStackEntry.arguments?.getString("title")
+                PlayerScreen(
+                    filePath = path,
+                    fileTitle = title,
+                    viewModel = playerViewModel,
+                    onNavigateBack = { navController.popBackStack() },
+                    onExit = onExit
+                )
+            }
         }
     }
 }
